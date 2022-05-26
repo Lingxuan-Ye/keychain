@@ -1,7 +1,7 @@
 import secrets
 import string
 from enum import Enum
-from typing import Iterable, NamedTuple, Optional, Union
+from typing import Iterable, NamedTuple, Optional
 
 
 class Mode(NamedTuple):
@@ -12,8 +12,8 @@ class Mode(NamedTuple):
     punctuation: int
 
     @property
-    def validity(self):
-        if all(i >= 0 for i in self) and sum(self) > 0:
+    def valid(self):
+        if all(isinstance(i, int) and i >= 0 for i in self) and sum(self) > 0:
             return True
         else:
             return False
@@ -32,7 +32,7 @@ class Mode(NamedTuple):
             mode = "".join(temp).strip("-").split("-")
         if isinstance(mode, Iterable):
             instance = cls._make(int(i) for i in mode)
-            if instance.validity:
+            if instance.valid:
                 return instance
             else:
                 raise ValueError(
@@ -84,7 +84,7 @@ class PasswordGenerator:
         punctuation characters are 8, 4, 4 and 0 respectively.
     """
 
-    __char = tuple([i.value for i in Char])
+    __char = tuple(i.value for i in Char)
 
     def __init__(self, mode: Optional[Iterable] = None):
         self.__mode = Mode.initiate(mode)
@@ -92,13 +92,13 @@ class PasswordGenerator:
     def __get_mode(self):
         return self.__mode
 
-    def set_mode(self, mode):
+    def set_mode(self, mode: Iterable):
         self.__mode = Mode.initiate(mode)
 
     mode = property(fget=__get_mode, fset=set_mode)
 
     @staticmethod
-    def __shuffle(x: list):
+    def __shuffle(x: list, /):
         """
         The same algorithm as method 'random.Random.shuffle',
         with the function 'secrets.randbelow' instead.
@@ -108,9 +108,13 @@ class PasswordGenerator:
             j = secrets.randbelow(i + 1)
             x[i], x[j] = x[j], x[i]
 
-    def generate(self):
+    def generate(self, mode: Optional[Iterable] = None):
+        if mode is None:
+            _mode = self.__mode
+        else:
+            _mode = Mode.initiate(mode)
         chosen = []
-        for index, length in enumerate(self.__mode):
+        for index, length in enumerate(_mode):
             for _ in range(length):
                 chosen.append(secrets.choice(self.__char[index]))
         self.__shuffle(chosen)
