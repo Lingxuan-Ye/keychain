@@ -385,17 +385,17 @@ class _BaseKeyChain(UserDict):
             temp[group.groupname] = group
         super().__init__(temp)
 
-    def __repr__(self) -> str:
-        repr_list: List(str) = []
-        self.sort_r()
-        for group in self.keys():
-            repr_list.append(repr(group))
-
-
     def sort_r(self) -> "_BaseKeyChain":
         for group in self.keys():
             group.sort_r()
         return self
+
+    def __repr__(self) -> str:
+        repr_list: List[str] = []
+        self.sort_r()
+        for group in self.keys():
+            repr_list.append(repr(group))
+        return f"{self.__class__.__name__}({', '.join(repr_list)})"
 
     def asdict(self) -> dict:
         dict_: Dict[str, list]= {}
@@ -403,3 +403,11 @@ class _BaseKeyChain(UserDict):
         for groupname, group in self.items():
             dict_[groupname] = group.aslist()
         return dict_
+
+class KeyChain(_BaseKeyChain):
+
+    def __init__(self, core: Group, other: Group) -> None:
+        core.groupname = "Core"
+        other.groupname = "Other"
+        super().__init__(core, other)
+        
