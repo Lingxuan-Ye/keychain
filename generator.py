@@ -12,14 +12,14 @@ class Mode(NamedTuple):
     punctuation: int
 
     @property
-    def valid(self):
+    def valid(self) -> bool:
         if all(isinstance(i, int) and i >= 0 for i in self) and sum(self) > 0:
             return True
         else:
             return False
 
     @classmethod
-    def initiate(cls, mode: Optional[Iterable] = None):
+    def initiate(cls, mode: Optional[Iterable] = None) -> "Mode":
         if mode is None:
             return cls(8, 4, 4, 0)
         if isinstance(mode, bytes):
@@ -86,19 +86,23 @@ class PasswordGenerator:
 
     __char = tuple(i.value for i in Char)
 
-    def __init__(self, mode: Optional[Iterable] = None):
+    def __init__(self, mode: Optional[Iterable] = None) -> None:
         self.__mode = Mode.initiate(mode)
 
-    def __get_mode(self):
+    def __get_mode(self) -> Mode:
         return self.__mode
 
-    def set_mode(self, mode: Iterable):
+    def __set_mode(self, mode: Iterable) -> None:
         self.__mode = Mode.initiate(mode)
 
-    mode = property(fget=__get_mode, fset=set_mode)
+    mode = property(fget=__get_mode, fset=__set_mode)
+
+    def set_mode(self, mode: Iterable) -> "PasswordGenerator":
+        self.__set_mode(mode)
+        return self
 
     @staticmethod
-    def __shuffle(x: list, /):
+    def __shuffle(x: list, /) -> None:
         """
         The same algorithm as method 'random.Random.shuffle',
         with the function 'secrets.randbelow' instead.
@@ -108,7 +112,7 @@ class PasswordGenerator:
             j = secrets.randbelow(i + 1)
             x[i], x[j] = x[j], x[i]
 
-    def generate(self, mode: Optional[Iterable] = None):
+    def generate(self, mode: Optional[Iterable] = None) -> str:
         if mode is None:
             _mode = self.__mode
         else:
