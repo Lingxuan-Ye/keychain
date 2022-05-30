@@ -607,11 +607,11 @@ class _BaseKeyChain(UserDict):
 
     def add_key(
         self,
-        group: str,
         keyname: str,
         username: str,
         password: str,
         *,
+        group: str,
         description: Optional[str] = None,
         url: Optional[str] = None
     ) -> "_BaseKeyChain":
@@ -808,10 +808,10 @@ class KeyChain(_BaseKeyChain):
         if group not in (PRIMARY, SECONDARY):
             raise ValueError
         super().add_key(
-            group,
             keyname,
             username,
             password,
+            group=group,
             description=description,
             url=url
         )
