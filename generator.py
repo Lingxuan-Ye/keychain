@@ -3,6 +3,8 @@ import string
 from enum import Enum
 from typing import Iterable, NamedTuple, Optional
 
+from .utils import Char
+
 
 class Mode(NamedTuple):
 
@@ -58,13 +60,6 @@ class ModePreset(Enum):
     UNIFORM_12 = Mode(3, 3, 3, 3)
     DEFAULT_16 = Mode(8, 4, 4, 0)
     UNIFORM_16 = Mode(4, 4, 4, 4)
-
-
-class Char(Enum):
-    LOWERCASE = string.ascii_lowercase
-    UPPERCASE = string.ascii_uppercase
-    DIGITS = string.digits
-    PUNCTUATION = string.punctuation
 
 
 class PasswordGenerator:
