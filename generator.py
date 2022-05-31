@@ -21,15 +21,15 @@ class Mode(NamedTuple):
             return False
 
     @classmethod
-    def initiate(cls, mode: Optional[Iterable] = None) -> "Mode":
+    def make(cls, mode: Optional[Iterable] = None) -> "Mode":
         if mode is None:
             return cls(8, 4, 4, 0)
         if isinstance(mode, bytes):
             mode = mode.decode("utf-8")
         if isinstance(mode, str):
-            temp = list(mode)
+            temp = [*mode]
             for index, char in enumerate(mode):
-                if not char.isascii() or not char.isdecimal():
+                if not char.isdecimal():
                     temp[index] = "-"
             mode = "".join(temp).strip("-").split("-")
         if isinstance(mode, Iterable):
@@ -38,11 +38,11 @@ class Mode(NamedTuple):
                 return instance
             else:
                 raise ValueError(
-                    "elements must be greater than or equal to 0, and "
+                    "values must be greater than or equal to 0, and "
                     "the sum must be greater than 0"
                 )
         else:
-            raise ValueError("cannot initiate from given argument")
+            raise ValueError("invalid argument")
 
 
 class ModePreset(Enum):
@@ -69,9 +69,9 @@ class PasswordGenerator:
     Parameters
     ----------
     mode: Iterable | NoneType
-        If 'mode' is an iterable, there must be 4 and only 4 elements
+        If 'mode' is Iterable, there must be 4 and only 4 values
         respectively representing the number of lowercase, uppercase, digit
-        and punctuation characters. Elements must be int or can be converted
+        and punctuation characters. Values must be int or can be converted
         to int, which must be greater than or equal to 0, and the sum must be
         greater than 0.
 
@@ -79,16 +79,21 @@ class PasswordGenerator:
         punctuation characters are 8, 4, 4 and 0 respectively.
     """
 
-    __char = tuple(i.value for i in Char)
+    __char = (
+        Char.LOWERCASE.value,
+        Char.UPPERCASE.value,
+        Char.DIGITS.value,
+        Char.PUNCTUATION.value
+    )
 
     def __init__(self, mode: Optional[Iterable] = None) -> None:
-        self.__mode = Mode.initiate(mode)
+        self.__mode = Mode.make(mode)
 
     def __get_mode(self) -> Mode:
         return self.__mode
 
     def __set_mode(self, mode: Iterable) -> None:
-        self.__mode = Mode.initiate(mode)
+        self.__mode = Mode.make(mode)
 
     mode = property(fget=__get_mode, fset=__set_mode)
 
@@ -107,15 +112,34 @@ class PasswordGenerator:
             j = secrets.randbelow(i + 1)
             x[i], x[j] = x[j], x[i]
 
-    def generate(self, mode: Optional[Iterable] = None) -> str:
+    def generate(
+        self,
+        mode: Optional[Iterable] = None,
+        *,
+        unique: bool = False
+    ) -> str:
+        """
+        If 'unique' is True and a value in 'mode' exceeds the volume of
+        the characters it represents, excess part will be omitted.
+        """
         if mode is None:
             _mode = self.__mode
         else:
-            _mode = Mode.initiate(mode)
+            _mode = Mode.make(mode)
         chosen = []
         for index, length in enumerate(_mode):
-            for _ in range(length):
-                chosen.append(secrets.choice(self.__char[index]))
+            if not unique:
+                for _ in range(length):
+                    chosen.append(secrets.choice(self.__char[index]))
+            else:
+                list_ = [*self.__char[index]]
+                for _ in range(length):
+                    try:
+                        choice = secrets.choice(list_)
+                    except IndexError:
+                        break
+                    chosen.append(choice)
+                    list_.remove(choice)
         self.__shuffle(chosen)
         password: str = "".join(chosen)
         return password

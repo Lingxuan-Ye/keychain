@@ -28,15 +28,16 @@ for-loop variable
         >   for i in self.values():
         >       _key: Key = i
     This kind of statement is of no use but a hint for 'mypy'.
-
 """
 
+import csv
 import json
 import re
 from bisect import insort
 from collections import Counter, UserDict, UserList
 from copy import deepcopy
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import *
 
 from .utils import Char, indent, timestamp
@@ -47,9 +48,6 @@ TAB_: str = Char.NEWLINE.value + Char.INDENT.value
 SEP_: str = Char.DELIMITER.value + TAB_
 TAB__: str = Char.NEWLINE.value + Char.INDENT.value * 2
 SEP__: str = Char.DELIMITER.value + TAB__
-
-PRIMARY = "Primary"
-SECONDARY = "Secondary"
 
 
 class Pair(NamedTuple):
@@ -113,7 +111,7 @@ class User:
         self.__deleted = False
         return self
 
-    def asdict(self, valid_only: bool = True) -> Optional[dict]:
+    def asdict(self, *, valid_only: bool = True) -> Optional[dict]:
         if self.__deleted and valid_only:
             return None
         else:
@@ -170,7 +168,7 @@ class _URLList(UserList):
         return super().__setattr__(__name, list_)
 
     def insort(self, url: str) -> None:
-        if isinstance(url, str):
+        if isinstance(url, str) and url not in self:
             insort(self.data, url.rstrip("/"))
 
     insert: Callable = insort
@@ -319,8 +317,9 @@ class Key:
                 insort(list_, _user)
         return list_
 
-    def add_user(self, user: User) -> "Key":
-        self.user_dict[user.username] = user
+    def add_user(self, *users: User) -> "Key":
+        for _user in users:
+            self.user_dict[_user.username] = _user
         return self
 
     def sort(self) -> None:
@@ -334,7 +333,7 @@ class Key:
         self.__deleted = False
         return self
 
-    def aspair(self, valid_only: bool = True) -> Optional[Pair]:
+    def aspair(self, *, valid_only: bool = True) -> Optional[Pair]:
         if self.__deleted and valid_only:
             return None
         else:
@@ -342,7 +341,7 @@ class Key:
             list_: List[dict] = []
             for i in self.user_dict.values():
                 _user: User = i
-                _export = _user.asdict(valid_only)
+                _export = _user.asdict(valid_only=valid_only)
                 if _export is not None:
                     insort(list_, _export)
             dict_ = {
@@ -393,22 +392,26 @@ class Group(UserDict):
     """
     Filter arguments but not raise exception when initiate.
 
-    Only 'Key' instances with attribute 'group' being None or
-    equal to 'self.groupname' will be accepted.
+    If 'force' is False, only 'Key' instances with attribute 'group'
+    being None or equal to 'self.groupname' will be accepted, otherwise
+    attribute 'group' of 'Key' instances will be set to 'self.groupname'.
 
     Warning:
         - attribute 'data' of 'Group' instance is not recommended to
           access from outer scope.
     """
-    def __init__(self, groupname: str, *keys: Key) -> None:
+    def __init__(self, groupname: str, *keys: Key, force: bool = False) -> None:
         self.data: Dict[str, Key] = {}
-        self.groupname: str = groupname
+        self.__groupname: str = groupname
         for i in keys:
             if isinstance(i, Key):
                 if i.group is None:
-                    i.group = self.groupname
-                if i.group != self.groupname:
-                    continue
+                    i.group = self.__groupname
+                if i.group != self.__groupname:
+                    if force:
+                        i.group = self.__groupname
+                    else:
+                        continue
                 if i.valid:
                     pass
                 elif i.keyname not in self.data:
@@ -416,8 +419,6 @@ class Group(UserDict):
                 elif self.data[i.keyname].valid:
                     continue
                 self.data[i.keyname] = i
-        if not isinstance(groupname, str):
-            raise TypeError
         self.__deleted: bool = False
 
     def __setattr__(
@@ -437,10 +438,10 @@ class Group(UserDict):
                 if i != j.keyname:
                     raise ValueError
                 if j.group is None:
-                    j.group = self.groupname
-                if j.group != self.groupname:
+                    j.group = self.__groupname
+                if j.group != self.__groupname:
                     raise ValueError
-        elif __name == "groupname":
+        elif __name == f"_{CLASSNAME}__groupname":
             if not isinstance(__value, str):
                 raise TypeError
         elif __name == f"_{CLASSNAME}__deleted":
@@ -458,8 +459,8 @@ class Group(UserDict):
         if __key != __item.keyname:
             raise ValueError
         if __item.group is None:
-            __item.group = self.groupname
-        if __item.group != self.groupname:
+            __item.group = self.__groupname
+        if __item.group != self.__groupname:
             raise ValueError
         if __item.valid:
             pass
@@ -468,6 +469,17 @@ class Group(UserDict):
         elif self.data[__key].valid:
             return
         return super().__setitem__(__key, __item)
+
+    def __get_groupname(self):
+        return self.__groupname
+
+    def __set_groupname(self, groupname: str):
+        self.__groupname = groupname
+        for i in self.values():
+            _key: Key = i
+            _key.group = groupname
+
+    groupname = property(fget=__get_groupname, fset=__set_groupname)
 
     @property
     def valid(self) -> bool:
@@ -482,8 +494,11 @@ class Group(UserDict):
                 insort(list_, _key)
         return list_
 
-    def add_key(self, key: Key) -> "Group":
-        self[key.keyname] = key
+    def add_key(self, *keys: Key, force: bool = False) -> "Group":
+        for _key in keys:
+            if force:
+                _key.group = self.groupname
+            self[_key.keyname] = _key
         return self
 
     def delete(self) -> "Group":
@@ -500,14 +515,14 @@ class Group(UserDict):
             _keyname: str = i
             _key: Key = j
             if _key.group is None:
-                _key.group = self.groupname
+                _key.group = self.__groupname
                 continue
-            if _key.group != self.groupname:
+            if _key.group != self.__groupname:
                 list_.append(self.data.pop(_keyname))
                 # 'UserDict' does not have method 'pop'.
         return list_
 
-    def aspair(self, valid_only: bool = True) -> Optional[Pair]:
+    def aspair(self, *, valid_only: bool = True) -> Optional[Pair]:
         if self.__deleted and valid_only:
             return None
         else:
@@ -517,10 +532,10 @@ class Group(UserDict):
                 _key: Key = i
                 insort(list_, _key)
             for _key in list_:
-                _pair = _key.aspair(valid_only)
+                _pair = _key.aspair(valid_only=valid_only)
                 if _pair is not None:
                     dict_[_pair.key] = _pair.value
-            return Pair(self.groupname, dict_)
+            return Pair(self.__groupname, dict_)
 
     export: Callable = aspair
 
@@ -548,12 +563,12 @@ class Group(UserDict):
             return repr_
 
 
-class _BaseKeyChain(UserDict):
+class KeyChain(UserDict):
     """
     Filter arguments but not raise exception when initiate.
 
     Warning:
-        - attribute 'data' of '_BaseKeyChain' instance is not recommended to
+        - attribute 'data' of 'KeyChain' instance is not recommended to
           access from outer scope.
     """
     def __init__(self, *groups: Union[str, Group]) -> None:
@@ -571,8 +586,6 @@ class _BaseKeyChain(UserDict):
                 self.data[i.groupname] = i
 
     def __setattr__(self, __name: str, __value: Any) -> None:
-        if not isinstance(__name, str):
-            raise TypeError
         if __name == "data":
             if not isinstance(__value, dict):
                 raise TypeError
@@ -585,13 +598,18 @@ class _BaseKeyChain(UserDict):
                     raise ValueError
         return super().__setattr__(__name, __value)
 
+    def __getattribute__(self, __name: str) -> Any:
+        if __name in self.data:
+            return self.data[__name]
+        return super().__getattribute__(__name)
+
     def __setitem__(self, __key: str, __item: Group) -> None:
         if not isinstance(__key, str):
             raise TypeError
         if not isinstance(__item, Group):
             raise TypeError
-        if __key != __item.groupname:
-            raise ValueError
+        if __item.groupname != __key:
+            __item.groupname = __key
         if __item.valid:
             pass
         elif __key not in self.data:
@@ -599,6 +617,11 @@ class _BaseKeyChain(UserDict):
         elif self.data[__key].valid:
             return
         return super().__setitem__(__key, __item)
+
+    def __getitem__(self, key: str):
+        if key in self.data:
+            return self.data
+        return super().__getitem__(key)
 
     @property
     def valid_groups(self) -> List[Group]:
@@ -609,9 +632,9 @@ class _BaseKeyChain(UserDict):
                 list_.append(_group)
         return list_
 
-    def add_key(self, *keys: Key) -> "_BaseKeyChain":
+    def add_key(self, *keys: Key) -> "KeyChain":
         for _key in keys:
-            if _key.group is not None:
+            if _key.group is not None:  # Always True.
                 if _key.group in self:
                     self[_key.group][_key.keyname] = _key
                 else:
@@ -627,12 +650,25 @@ class _BaseKeyChain(UserDict):
         group: str,
         description: Optional[str] = None,
         url: Optional[str] = None
-    ) -> "_BaseKeyChain":
+    ) -> "KeyChain":
         if not isinstance(group, str):
             raise TypeError
         user = User(username, password)
         key = Key(keyname, user, group=group, description=description, url=url)
         return self.add_key(key)
+
+    def get_all_keys(self, *, valid_only: bool = True) -> List[Key]:
+        list_: List[Key] = []
+        for i in self.values():
+            _group: Group = i
+            if valid_only and not _group.valid:
+                continue
+            for i in _group.values():
+                _key: Key = i
+                if valid_only and not _key.valid:
+                    continue
+                list_.append(_key)
+        return list_
 
     def get_key(
         self,
@@ -652,42 +688,39 @@ class _BaseKeyChain(UserDict):
             func = re.search
         if not regex_on:
             pattern = re.escape(pattern)
-        for i in self.values():
-            _group: Group = i
-            for i in _group.values():
-                _key: Key = i
-                if func(pattern, _key.keyname) is not None:
+        for _key in self.get_all_keys():
+            if func(pattern, _key.keyname) is not None:
+                list_.append(_key)
+                continue
+            if keyname_only:
+                continue
+            if _key.description is not None:
+                if func(pattern, _key.description) is not None:
                     list_.append(_key)
                     continue
-                if keyname_only:
-                    continue
-                if _key.description is not None:
-                    if func(pattern, _key.description) is not None:
-                        list_.append(_key)
-                        continue
-                _flag = False
-                for _url in _key.url_list:
-                    if func(pattern, _url) is not None:
-                        list_.append(_key)
-                        _flag = True
-                        break
-                if _flag:
-                    continue
-                for i in _key.user_dict.values():
-                    _user: User = i
-                    if func(pattern, _user.username) is not None:
-                        list_.append(_key)
-                        break
-                    if func(pattern, _user.password) is not None:
+            _flag = False
+            for _url in _key.url_list:
+                if func(pattern, _url) is not None:
+                    list_.append(_key)
+                    _flag = True
+                    break
+            if _flag:
+                continue
+            for i in _key.user_dict.values():
+                _user: User = i
+                if func(pattern, _user.username) is not None:
+                    list_.append(_key)
+                    break
+                if func(pattern, _user.password) is not None:
+                    list_.append(_key)
+                    break
+                if _user.notes is not None:
+                    if func(pattern, _user.notes) is not None:
                         list_.append(_key)
                         break
-                    if _user.notes is not None:
-                        if func(pattern, _user.notes) is not None:
-                            list_.append(_key)
-                            break
         return list_
 
-    def regrouping(self) -> "_BaseKeyChain":
+    def regrouping(self) -> "KeyChain":
         outcasts: List[Key] = []
         for i in self.values():
             _group: Group = i
@@ -710,7 +743,7 @@ class _BaseKeyChain(UserDict):
                 dict_[_keyname] = self.get_key(_keyname, keyname_only=True)
         return dict_
 
-    def asdict(self, valid_only: bool = True) -> dict:
+    def asdict(self, *, valid_only: bool = True) -> dict:
         dict_ = {}
         grouplist: List[Group] = []
         for i in self.values():
@@ -718,24 +751,72 @@ class _BaseKeyChain(UserDict):
             grouplist.append(_group)
         grouplist.sort(key=lambda x: x.groupname)
         for _group in grouplist:
-            _pair = _group.aspair(valid_only)
+            _pair = _group.aspair(valid_only=valid_only)
             if _pair is not None:
                 dict_[_pair.key] = _pair.value
         return dict_
 
     export: Callable = asdict
 
-    def to_json(self, valid_only: bool = True) -> str:
+    def dump_csv(
+        self,
+        path: Union[Path, str],
+        *,
+        valid_only: bool = True
+    ) -> None:
+        """
+        Only for Google Password Manerger.
+        Should delete .csv file immediately after importing to
+        Google account.
+        """
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(("name", "url", "username", "password"))
+            for _key in self.get_all_keys(valid_only=valid_only):
+                if _key.url_list[0] is not None:
+                    _url = _key.url_list[0]  # Discard the rest.
+                else:
+                    _url = _key.keyname  # May not be recognized.
+                for i in _key.user_dict.values():
+                    _user: User = i
+                    row = (_key.keyname, _url, _user.username, _user.password)
+                    writer.writerow(row)
+
+    @classmethod
+    def load_csv(
+        cls,
+        path: Union[Path, str],
+        group: str
+    ) -> "KeyChain":
+        """
+        Only for Google Password Manerger.
+        Should delete .csv file immediately after importing.
+        """
+        dict_: Dict[str, Key] = {}
+        with open(path, encoding="utf-8", newline="") as f:
+            reader = csv.reader(f)
+            next(reader)
+            for _keyname, _url, _username, _password in reader:
+                _user = User(_username, _password)
+                if _keyname not in dict_:
+                    dict_[_keyname] = Key(_keyname, _user, url=_url)
+                else:
+                    _key = dict_[_keyname]
+                    _key.url_list.insort(_url)
+                    _key.add_user(_user)
+        return cls(Group(group, *dict_.values()))
+
+    def to_json(self, *, valid_only: bool = True) -> str:
         """
         Should never save a json string before encrypted.
         """
-        dict_ = self.asdict(valid_only)
+        dict_ = self.asdict(valid_only=valid_only)
         return json.dumps(dict_, ensure_ascii=False, indent=4)
 
     @classmethod
-    def from_json(cls, string_: str) -> "_BaseKeyChain":
+    def from_json(cls, string_: str) -> "KeyChain":
         keychain_dict: dict = json.loads(string_)
-        list_: List[Group] = []
+        instance = cls()
         for i, j in keychain_dict.items():
             _groupname: str = i
             _group_dict: dict = j
@@ -758,8 +839,8 @@ class _BaseKeyChain(UserDict):
                     _user.timestamp = _user_dict["timestamp"]
                     _key.add_user(_user)
                 _group.add_key(_key)
-            list_.append(_group)
-        return cls(*list_)
+            instance[_groupname] = _group
+        return instance
 
     def __repr__(self) -> str:
         CLASSNAME = self.__class__.__name__
@@ -781,87 +862,3 @@ class _BaseKeyChain(UserDict):
                 f"{SEP_}{indent(repr(valid_groups[-1]))}\n)"
             )
         return repr_
-
-
-class KeyChain(_BaseKeyChain):
-
-    __inst: Optional["KeyChain"] = None
-
-    def __new__(cls, *args, **kwargs) -> "KeyChain":
-        if cls.__inst is None:
-            cls.__inst = super().__new__(cls)
-        return cls.__inst
-
-    def __init__(
-        self,
-        *,
-        primary: Optional[Group] = None,
-        secondary: Optional[Group] = None
-    ) -> None:
-        groups: List[Union[str, Group]] = []
-        if primary is None:
-            groups.append(PRIMARY)
-        elif isinstance(primary, Group):
-            primary.groupname = PRIMARY
-            for i in primary.values():
-                _primary_key: Key = i
-                _primary_key.group = PRIMARY
-            groups.append(primary)
-        else:
-            raise TypeError
-        if secondary is None:
-            groups.append(SECONDARY)
-        elif isinstance(secondary, Group):
-            secondary.groupname = SECONDARY
-            for i in secondary.values():
-                _secondary_key: Key = i
-                _secondary_key.group = SECONDARY
-            groups.append(secondary)
-        else:
-            raise TypeError
-        super().__init__(*groups)
-
-    def __setattr__(self, __name: str, __value: Any) -> None:
-        if __name == "data":
-            for i in __value:
-                if i not in (PRIMARY, SECONDARY):
-                    raise ValueError
-        else:
-            raise AttributeError
-        return super().__setattr__(__name, __value)
-
-    @property
-    def primary(self):
-        return self[PRIMARY]
-
-    @property
-    def secondary(self):
-        return self[SECONDARY]
-
-    def add_new_key(
-        self,
-        keyname: str,
-        username: str,
-        password: str,
-        *,
-        group: Union[str, int, NoneType] = None,
-        description: Optional[str] = None,
-        url: Optional[str] = None
-    ) -> "KeyChain":
-        if group is None:
-            group = SECONDARY
-        elif isinstance(group, int):
-            group = PRIMARY if group == 0 else SECONDARY
-        elif isinstance(group, str):
-            group = group.capitalize()
-        if group not in (PRIMARY, SECONDARY):
-            raise ValueError
-        super().add_new_key(
-            keyname,
-            username,
-            password,
-            group=group,
-            description=description,
-            url=url
-        )
-        return self
