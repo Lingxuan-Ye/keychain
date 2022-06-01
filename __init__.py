@@ -1,6 +1,5 @@
-from .generator import Mode, ModePreset, PasswordGenerator
-from .keychain import Group, Key, KeyChain, User
-from io_ import IO
+from .model import Group, Key, KeyChain, User
+from .utils import IO, PasswordGenerator
 
 __author__ = "Lingxuan Ye"
-__version__ = "0.3.0"
+__version__ = "0.3.1"
