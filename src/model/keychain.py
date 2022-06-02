@@ -48,10 +48,8 @@ class KeyChain(UserDict):
                     raise ValueError
         return super().__setattr__(__name, __value)
 
-    def __getattribute__(self, __name: str) -> Any:
-        if __name in self.data:
-            return self.data[__name]
-        return super().__getattribute__(__name)
+    def __getitem__(self, key: str) -> Group:
+        return super().__getitem__(key)
 
     def __setitem__(self, __key: str, __item: Group) -> None:
         if not isinstance(__key, str):
@@ -68,27 +66,22 @@ class KeyChain(UserDict):
             return
         return super().__setitem__(__key, __item)
 
-    def __getitem__(self, key: str):
-        if key in self.data:
-            return self.data
-        return super().__getitem__(key)
-
     @property
     def valid_groups(self) -> List[Group]:
         list_: List[Group] = []
-        for i in self.values():
-            _group: Group = i
+        for _group in self.data.values():
             if _group.valid:
                 insort(list_, _group)
         return list_
 
     def add_key(self, *keys: Key) -> "KeyChain":
         for _key in keys:
-            if _key.group is not None:  # Always True.
-                if _key.group in self:
-                    self[_key.group][_key.keyname] = _key
-                else:
-                    self[_key.group] = Group(_key.group, _key)
+            if _key.group is None:
+                _key.group = "Default"
+            if _key.group in self:
+                self.data[_key.group][_key.keyname] = _key
+            else:
+                self.data[_key.group] = Group(_key.group, _key)
         return self
 
     def add_new_key(
@@ -97,7 +90,7 @@ class KeyChain(UserDict):
         username: str,
         password: str,
         *,
-        group: str,
+        group: str = "Default",
         description: Optional[str] = None,
         url: Optional[str] = None
     ) -> "KeyChain":
@@ -109,8 +102,7 @@ class KeyChain(UserDict):
 
     def get_all_keys(self, *, valid_only: bool = True) -> List[Key]:
         list_: List[Key] = []
-        for i in self.values():
-            _group: Group = i
+        for _group in self.data.values():
             if valid_only and not _group.valid:
                 continue
             for i in _group.values():
@@ -126,7 +118,8 @@ class KeyChain(UserDict):
         *,
         keyname_only: bool = True,
         regex_on: bool = False,
-        fullmatch: bool = False
+        fullmatch: bool = False,
+        valid_only: bool = True
     ) -> List[Key]:
         """
         Argument 'pattern' should be r-string.
@@ -138,7 +131,7 @@ class KeyChain(UserDict):
             func = re.search
         if not regex_on:
             pattern = re.escape(pattern)
-        for _key in self.get_all_keys():
+        for _key in self.get_all_keys(valid_only=valid_only):
             if func(pattern, _key.keyname) is not None:
                 list_.append(_key)
                 continue
@@ -172,16 +165,14 @@ class KeyChain(UserDict):
 
     def regrouping(self) -> "KeyChain":
         outcasts: List[Key] = []
-        for i in self.values():
-            _group: Group = i
+        for _group in self.data.values():
             outcasts.extend(_group.outcast())
         return self.add_key(*outcasts)
 
     @property
     def register(self) -> Counter:
         list_: List[str] = []
-        for i in self.values():
-            _group: Group = i
+        for _group in self.data.values():
             list_.extend(_group)
         return Counter(list_)
 
@@ -196,8 +187,7 @@ class KeyChain(UserDict):
     def asdict(self, *, valid_only: bool = True) -> dict:
         dict_ = {}
         list_: List[Group] = []
-        for i in self.values():
-            _group: Group = i
+        for _group in self.data.values():
             insort(list_, _group)
         for _group in list_:
             _pair = _group.aspair(valid_only=valid_only)
@@ -235,7 +225,8 @@ class KeyChain(UserDict):
     def load_csv(
         cls,
         path: Union[Path, str],
-        group: str
+        *,
+        group: str = "Default"
     ) -> "KeyChain":
         """
         Only for Google Password Manerger.
@@ -288,14 +279,14 @@ class KeyChain(UserDict):
                     _user.timestamp = _user_dict["timestamp"]
                     _key.add_user(_user)
                 _group.add_key(_key)
-            instance[_groupname] = _group
+            instance.data[_groupname] = _group
         return instance
 
     def __repr__(self) -> str:
         CLASSNAME = self.__class__.__name__
         valid_groups = self.valid_groups
         if not valid_groups:
-            repr_ = (f"{CLASSNAME}()")
+            repr_ = (f"{CLASSNAME}(__empty__)")
         elif len(valid_groups) <= 4:
             repr_ = (
                 f"{CLASSNAME}("

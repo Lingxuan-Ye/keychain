@@ -72,12 +72,15 @@ class Group(UserDict):
             raise AttributeError
         return super().__setattr__(__name, __value)
 
+    def __getitem__(self, key: str) -> Key:
+        return super().__getitem__(key)
+
     def __setitem__(self, __key: str, __item: Key) -> None:
         if not isinstance(__key, str):
             raise TypeError
         if not isinstance(__item, Key):
             raise TypeError
-        if __key != __item.keyname:
+        if __item.keyname != __key:
             raise ValueError
         if __item.group is None:
             __item.group = self.__groupname
@@ -102,8 +105,7 @@ class Group(UserDict):
 
     def __set_groupname(self, groupname: str):
         self.__groupname = groupname
-        for i in self.values():
-            _key: Key = i
+        for _key in self.data.values():
             _key.group = groupname
 
     groupname = property(fget=__get_groupname, fset=__set_groupname)
@@ -115,8 +117,7 @@ class Group(UserDict):
     @property
     def valid_keys(self) -> List[Key]:
         list_: List[Key] = []
-        for i in self.values():
-            _key: Key = i
+        for _key in self.data.values():
             if _key.valid:
                 insort(list_, _key)
         return list_
@@ -125,7 +126,7 @@ class Group(UserDict):
         for _key in keys:
             if force:
                 _key.group = self.__groupname
-            self[_key.keyname] = _key
+            self.data[_key.keyname] = _key
         return self
 
     def delete(self) -> "Group":
@@ -138,15 +139,12 @@ class Group(UserDict):
 
     def outcast(self) -> List[Key]:
         list_: List[Key] = []
-        for i, j in deepcopy(self).items():
-            _keyname: str = i
-            _key: Key = j
+        for _keyname, _key in deepcopy(self.data).items():
             if _key.group is None:
                 _key.group = self.__groupname
                 continue
             if _key.group != self.__groupname:
                 list_.append(self.data.pop(_keyname))
-                # 'UserDict' does not have method 'pop'.
         return list_
 
     def aspair(self, *, valid_only: bool = True) -> Optional[Pair]:
@@ -155,8 +153,7 @@ class Group(UserDict):
         else:
             dict_ = {}
             list_: List[Key] = []
-            for i in self.values():
-                _key: Key = i
+            for _key in self.data.values():
                 insort(list_, _key)
             for _key in list_:
                 _pair = _key.aspair(valid_only=valid_only)

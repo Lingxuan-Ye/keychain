@@ -39,21 +39,21 @@ class _URLList(UserList):
         return super().__setattr__(__name, list_)
 
     def insort(self, url: str) -> None:
-        if isinstance(url, str) and url not in self:
+        if isinstance(url, str) and url not in self.data:
             insort(self.data, url.rstrip("/"))
 
     insert: Callable = insort
 
     def append(self, url: str) -> None:
         """Drprecated."""
-        if isinstance(url, str) and url not in self:
+        if isinstance(url, str) and url not in self.data:
             return super().append(url.rstrip("/"))
 
     def extend(self, other: Iterable[str]) -> None:
         """Drprecated."""
         list_: List[str] = []
         for i in other:
-            if isinstance(i, str) and i not in self:
+            if isinstance(i, str) and i not in self.data:
                 list_.append(i.rstrip("/"))
         return super().extend(list_)
 
@@ -92,6 +92,9 @@ class _UserDict(UserDict):
         else:
             raise AttributeError
         return super().__setattr__(__name, __value)
+
+    def __getitem__(self, key: str) -> User:
+        return super().__getitem__(key)
 
     def __setitem__(self, __key: str, __item: User) -> None:
         if not isinstance(__key, str):

@@ -1,9 +1,8 @@
 import secrets
-import string
 from enum import Enum
 from typing import Iterable, NamedTuple, Optional
 
-from .utils import Char
+from .utils.char import Char
 
 
 class Mode(NamedTuple):

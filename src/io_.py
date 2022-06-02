@@ -3,7 +3,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Union
 
-from .keychain import KeyChain
+from .model import KeyChain
 
 try:
     from random import randbytes
@@ -24,14 +24,19 @@ except ImportError:
 class Status(Enum):
 
     FORMAT_ERROR = "error: unknown format."
-    PASSWORD_ERROR = "error: incorrect password."
+    PASSWORD_ERROR = "error: incorrect username or password."
 
 
 class IO:
 
-    def __init__(self, path: Union[Path, str], seed: str) -> None:
+    def __init__(
+        self,
+        path: Union[Path, str],
+        username: str,
+        password: str
+    ) -> None:
         self.path = path if isinstance(path, Path) else Path(path)
-        self.seed = seed
+        self.seed = username + password
 
     def __setattr__(self, __name: str, __value: Union[Path, str]) -> None:
         if __name == "path":
@@ -55,7 +60,7 @@ class IO:
         seed_digest = lines[1].strip().decode("utf-8")
         if seed_digest != sha256(self.seed.encode("utf-8")).hexdigest():
             return Status.PASSWORD_ERROR
-        raw = b"".join(lines[2:])
+        raw = b"".join(lines[2:])[:-1]
         length = len(raw)
         set_seed(self.seed, version=2)
         key = randbytes(length)
