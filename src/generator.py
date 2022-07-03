@@ -2,7 +2,7 @@ import secrets
 from enum import Enum
 from typing import Iterable, NamedTuple, Optional
 
-from .utils.char import Char
+from .utils import Char
 
 
 class Mode(NamedTuple):
@@ -140,5 +140,5 @@ class PasswordGenerator:
                     chosen.append(choice)
                     list_.remove(choice)
         self.__shuffle(chosen)
-        password: str = "".join(chosen)
+        password = "".join(chosen)
         return password

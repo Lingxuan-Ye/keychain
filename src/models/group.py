@@ -3,8 +3,7 @@ from collections import UserDict
 from copy import deepcopy
 from typing import Callable, Dict, List, Optional, Union
 
-from ..utils import indent
-from ._constants import SEP_, TAB_
+from ..utils import SEP_, TAB_, indent
 from .key import Key
 from .pair import Pair
 

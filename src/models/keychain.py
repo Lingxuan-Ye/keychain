@@ -6,8 +6,7 @@ from collections import Counter, UserDict
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from ..utils import indent
-from ._constants import SEP_, TAB_
+from ..utils import SEP_, TAB_, indent
 from .group import Group
 from .key import Key
 from .user import User

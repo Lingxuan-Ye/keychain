@@ -1,9 +1,9 @@
-from enum import Enum
 from hashlib import sha256
 from pathlib import Path
-from typing import Union
+from typing import NamedTuple, Optional, Union
 
-from .model import KeyChain
+from .models import KeyChain
+from .status import Status
 
 try:
     from random import randbytes
@@ -21,28 +21,25 @@ except ImportError:
     set_seed = _inst.seed
 
 
-class Status(Enum):
-
-    FORMAT_ERROR = "error: unknown format."
-    PASSWORD_ERROR = "error: incorrect username or password."
+class _Result(NamedTuple):
+    status: Status
+    keychain: Optional[KeyChain]
 
 
 class IO:
 
     def __init__(
         self,
-        path: Union[Path, str],
+        path: Path,
         username: str,
         password: str
     ) -> None:
-        self.path = path if isinstance(path, Path) else Path(path)
+        self.path = path
         self.seed = username + password
 
     def __setattr__(self, __name: str, __value: Union[Path, str]) -> None:
         if __name == "path":
-            if isinstance(__value, str):
-                __value = Path(__value)
-            elif not isinstance(__value, Path):
+            if not isinstance(__value, Path):
                 raise TypeError
             if not __value.is_file():
                 __value = __value / ".keychain"
@@ -51,24 +48,24 @@ class IO:
                 raise TypeError
         return super().__setattr__(__name, __value)
 
-    def read(self) -> Union[Status, KeyChain]:
+    def read(self) -> _Result:
         with open(self.path, "rb") as f:
             lines = f.readlines()
         format = lines[0].strip().upper()
         if format != b"KEYCHAIN":
-            return Status.FORMAT_ERROR
+            return _Result(Status.FORMAT_ERROR, None)
         seed_digest = lines[1].strip().decode("utf-8")
         if seed_digest != sha256(self.seed.encode("utf-8")).hexdigest():
-            return Status.PASSWORD_ERROR
+            return _Result(Status.PASSWORD_ERROR, None)
         raw = b"".join(lines[2:])[:-1]
         length = len(raw)
         set_seed(self.seed, version=2)
         key = randbytes(length)
         xor = int.from_bytes(raw, "big") ^ int.from_bytes(key, "big")
-        decrypted = xor.to_bytes(length, "big")
-        return KeyChain.from_json(decrypted.decode("utf-8"))
+        decrypted = xor.to_bytes(length, "big").decode("utf-8")
+        return _Result(Status.SUCCESS, KeyChain.from_json(decrypted))
 
-    def write(self, keychain: KeyChain) -> None:
+    def write(self, keychain: KeyChain) -> _Result:
         raw = keychain.to_json().encode("utf-8")
         length = len(raw)
         set_seed(self.seed, version=2)
@@ -81,3 +78,4 @@ class IO:
             f.write(b"KEYCHAIN\n")
             f.write(seed_digest.encode("utf-8") + b"\n")
             f.write(encrypted + b"\n")
+        return _Result(Status.SUCCESS, keychain)

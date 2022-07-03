@@ -2,12 +2,13 @@ from bisect import insort
 from collections import UserDict, UserList
 from typing import Callable, Dict, Iterable, List, Optional, Union
 
-from ..utils import indent
-from ._constants import SEP_, SEP__, TAB_, TAB__, NoneType
+from ..utils import SEP_, SEP__, TAB_, TAB__, indent
 from .pair import Pair
 from .user import User
 
 __all__ = ["Key"]
+
+NoneType = type(None)
 
 
 class _URLList(UserList):

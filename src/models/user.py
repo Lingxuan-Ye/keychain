@@ -1,7 +1,8 @@
 from typing import Callable, Optional, Union
 
-from ..utils import timestamp
-from ._constants import SEP_, TAB_, NoneType
+from ..utils import SEP_, TAB_, timestamp
+
+NoneType = type(None)
 
 
 class User:
